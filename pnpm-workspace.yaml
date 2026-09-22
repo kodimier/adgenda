@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - esbuild
+  - argon2
+
+allowBuilds:
+  esbuild: true
+  argon2: true

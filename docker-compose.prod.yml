@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: adgenda
+      POSTGRES_PASSWORD: adgenda
+      POSTGRES_DB: adgenda
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adgenda -d adgenda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command: ["postgres", "-c", "fsync=on", "-c", "full_page_writes=on", "-c", "synchronous_commit=on"]
+    stop_grace_period: 30s
+    restart: always
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"
+    restart: always
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      API_PORT: "3000"
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8088}
+      DATABASE_URL: postgresql://adgenda:adgenda@postgres:5432/adgenda
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_FROM: ${MAIL_FROM:-Adgenda <noreply@localhost>}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "${WEB_BIND:-127.0.0.1:8088}:80"
+    depends_on:
+      - api
+    restart: always
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ${CLOUDFLARED_COMMAND:-tunnel --no-autoupdate --url http://web:80}
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    restart: always
+
+volumes:
+  postgres_data:

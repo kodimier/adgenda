@@ -1,0 +1,20 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN pnpm install --frozen-lockfile
+COPY packages/shared packages/shared
+COPY apps/api apps/api
+RUN pnpm --filter @adgenda/shared build && pnpm --filter @adgenda/api build
+
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
+COPY --from=build /app /app
+WORKDIR /app/apps/api
+EXPOSE 3000
+CMD ["sh", "-c", "pnpm exec drizzle-kit push --force && node dist/main.js"]

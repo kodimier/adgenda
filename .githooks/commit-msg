@@ -1,0 +1,7 @@
+#!/bin/sh
+# Remove a assinatura automática do Cursor, se ela for injetada no commit.
+msg_file="$1"
+tmp_file="${msg_file}.stripped"
+
+grep -viE '^[[:space:]]*(Co-authored-by:.*[Cc]ursor|Made-with:[[:space:]]*Cursor|Made with Cursor)' "$msg_file" > "$tmp_file"
+mv "$tmp_file" "$msg_file"

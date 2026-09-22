@@ -1,0 +1,19 @@
+{
+  "name": "adgenda",
+  "private": true,
+  "author": "Victor Paschoal (kodimier) <kodimier@gmail.com>",
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @adgenda/shared build && pnpm --parallel --filter @adgenda/api --filter @adgenda/web dev",
+    "dev:api": "pnpm --filter @adgenda/api dev",
+    "dev:web": "pnpm --filter @adgenda/web dev",
+    "build": "pnpm --filter @adgenda/shared build && pnpm --filter @adgenda/api --filter @adgenda/web build",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:push": "pnpm --filter @adgenda/api exec drizzle-kit push"
+  }
+}
