@@ -35,10 +35,12 @@ import {
 } from "./api";
 import {
   WEEKDAYS,
+  fromIsoDate,
   monthCells,
   monthsInRange,
   periodRange,
   shiftPeriod,
+  toIsoDate,
   weekCells,
 } from "./dates";
 
@@ -108,6 +110,8 @@ function Agenda({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composer, setComposer] = useState<"create" | "edit" | "agenda" | "invite" | null>(null);
   const [draftDate, setDraftDate] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const [toast, setToast] = useState<string | null>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const range = useMemo(() => periodRange(period, cursor), [period, cursor]);
@@ -159,6 +163,7 @@ function Agenda({
       if (event.key === "Escape") {
         setSelectedTripId(null);
         setComposer(null);
+        setMenuOpen(false);
         setNotificationsOpen(false);
         setHistoryOpen(false);
       }
@@ -193,17 +198,38 @@ function Agenda({
 
   return (
     <div className="flex min-h-screen bg-canvas text-ink">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-surface">
-        <div className="px-5 py-5">
-          <p className="text-lg font-semibold tracking-tight">Adgenda</p>
-          <p className="mt-1 text-xs text-muted">Agenda de viagens corporativas</p>
+      <div
+        className={`fixed inset-0 z-[74] bg-ink/30 transition duration-200 lg:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        onClick={() => setMenuOpen(false)}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-[75] flex w-72 max-w-[85vw] shrink-0 flex-col border-r border-line bg-surface transition duration-300 ease-[var(--ease-out-soft)] lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 lg:shadow-none ${
+          menuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-start justify-between px-5 py-5">
+          <div>
+            <p className="text-lg font-semibold tracking-tight">Adgenda</p>
+            <p className="mt-1 text-xs text-muted">Agenda de viagens corporativas</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setMenuOpen(false)}
+            className="-mr-2 rounded-full px-2 py-1 text-xl leading-none text-muted transition hover:text-ink active:scale-90 lg:hidden"
+          >
+            ×
+          </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-auto px-3">
           {agendas.map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setAgendaId(item.id)}
+              onClick={() => {
+                setAgendaId(item.id);
+                setMenuOpen(false);
+              }}
               className={`w-full rounded-lg px-3 py-2.5 text-left transition duration-200 ease-[var(--ease-out-soft)] ${
                 item.id === agenda?.id ? "bg-accent-soft text-accent" : "text-ink/80 hover:bg-surface-muted"
               }`}
@@ -214,7 +240,10 @@ function Agenda({
           ))}
           <button
             type="button"
-            onClick={() => setComposer("agenda")}
+            onClick={() => {
+              setMenuOpen(false);
+              setComposer("agenda");
+            }}
             className="w-full rounded-lg px-3 py-2 text-left text-sm text-accent hover:bg-accent-soft"
           >
             Nova agenda
@@ -236,7 +265,10 @@ function Agenda({
           {isAdmin ? (
             <button
               type="button"
-              onClick={() => setComposer("invite")}
+              onClick={() => {
+                setMenuOpen(false);
+                setComposer("invite");
+              }}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2.5 text-sm font-medium text-accent transition duration-200 ease-[var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-accent hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
             >
               <span aria-hidden className="text-base leading-none">+</span>
@@ -252,46 +284,64 @@ function Agenda({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-50 flex items-center gap-3 border-b border-line bg-surface/90 px-6 py-3 backdrop-blur">
+        <header className="sticky top-0 z-50 flex flex-wrap items-center gap-2 border-b border-line bg-surface/90 px-3 py-2 backdrop-blur md:gap-3 md:px-6 md:py-3">
+          <button
+            type="button"
+            aria-label="Abrir menu"
+            onClick={() => setMenuOpen(true)}
+            className="-ml-1 rounded-full p-2 text-ink transition hover:bg-surface-muted active:scale-90 lg:hidden"
+          >
+            <IconMenu />
+          </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{agenda?.name ?? "Nenhuma agenda"}</p>
-            <p className="text-xs capitalize text-muted">{range.title}</p>
+            <p className="truncate text-xs capitalize text-muted">{range.title}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <button type="button" className="rounded-full border border-line px-2 py-1 text-sm" onClick={() => setCursor(shiftPeriod(period, cursor, -1))}>
-              ‹
-            </button>
-            <button type="button" className="rounded-full border border-line px-2 py-1 text-sm" onClick={() => setCursor(new Date())}>
-              Hoje
-            </button>
-            <button type="button" className="rounded-full border border-line px-2 py-1 text-sm" onClick={() => setCursor(shiftPeriod(period, cursor, 1))}>
-              ›
-            </button>
-          </div>
-          <div className="relative flex rounded-full bg-surface-muted p-1">
-            {PERIOD_VIEWS.map((view) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => setPeriod(view)}
-                className={`relative rounded-full px-3 py-1.5 text-xs font-medium capitalize transition duration-200 ${
-                  period === view ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
-                }`}
-              >
-                {PERIOD_LABEL[view]}
+          <div className="order-last flex w-full items-center gap-2 md:order-none md:w-auto">
+            <div className="flex shrink-0 items-center gap-1">
+              <button type="button" aria-label="Período anterior" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-90" onClick={() => setCursor(shiftPeriod(period, cursor, -1))}>
+                ‹
               </button>
-            ))}
+              <button type="button" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-95" onClick={() => setCursor(new Date())}>
+                Hoje
+              </button>
+              <button type="button" aria-label="Próximo período" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-90" onClick={() => setCursor(shiftPeriod(period, cursor, 1))}>
+                ›
+              </button>
+            </div>
+            <div className="no-scrollbar relative flex min-w-0 flex-1 overflow-x-auto rounded-full bg-surface-muted p-1 md:flex-none">
+              {PERIOD_VIEWS.map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setPeriod(view)}
+                  className={`relative shrink-0 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition duration-200 active:scale-95 ${
+                    period === view ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {PERIOD_LABEL[view]}
+                </button>
+              ))}
+            </div>
           </div>
-          <button type="button" onClick={() => setHistoryOpen(true)} className="rounded-full border border-line px-3 py-1.5 text-sm">
-            Histórico
+          <button
+            type="button"
+            aria-label="Histórico"
+            onClick={() => setHistoryOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-line p-2 text-sm transition hover:border-accent active:scale-95 md:px-3 md:py-1.5"
+          >
+            <IconHistory />
+            <span className="hidden md:inline">Histórico</span>
           </button>
           <div className="relative z-50" ref={notificationsRef}>
             <button
               type="button"
+              aria-label="Notificações"
               onClick={() => setNotificationsOpen((open) => !open)}
-              className="relative rounded-full border border-line px-3 py-1.5 text-sm transition hover:border-accent"
+              className="relative inline-flex items-center gap-2 rounded-full border border-line p-2 text-sm transition hover:border-accent active:scale-95 md:px-3 md:py-1.5"
             >
-              Notificações
+              <IconBell />
+              <span className="hidden md:inline">Notificações</span>
               {unread > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] text-white">
                   {unread}
@@ -299,7 +349,7 @@ function Agenda({
               ) : null}
             </button>
             <div
-              className={`absolute right-0 z-50 mt-2 w-80 origin-top-right rounded-xl border border-line bg-surface p-2 shadow-xl transition duration-200 ${
+              className={`absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] origin-top-right rounded-xl border border-line bg-surface p-2 shadow-xl transition duration-200 ${
                 notificationsOpen ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-1 scale-95 opacity-0"
               }`}
             >
@@ -345,13 +395,15 @@ function Agenda({
               setDraftDate(null);
               setComposer("create");
             }}
-            className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+            aria-label="Nova viagem"
+            className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-sm font-medium text-white transition hover:brightness-110 active:scale-95 disabled:opacity-50 md:px-4"
           >
-            Nova viagem
+            <span aria-hidden className="text-base leading-none">+</span>
+            <span className="hidden sm:inline">Nova viagem</span>
           </button>
         </header>
 
-        <main className="relative z-0 flex-1 overflow-auto p-6">
+        <main className="relative z-0 flex-1 overflow-auto p-3 md:p-6">
           {invites.length > 0 ? (
             <div className="mb-4 space-y-2">
               {invites.map((invite) => (
@@ -388,6 +440,7 @@ function Agenda({
             <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm" style={{ animation: "toast-in 220ms var(--ease-out-soft)" }}>
               {period === "mes" || period === "semana" ? (
                 <CalendarGrid
+                  isDesktop={isDesktop}
                   cells={period === "semana" ? weekCells(cursor) : monthCells(cursor)}
                   compact={period === "semana"}
                   tripsOn={tripsOn}
@@ -432,7 +485,7 @@ function Agenda({
               <Field label="Volta" value={formatBr(selectedTrip.endDate)} />
             </dl>
             {canMutate(selectedTrip) ? (
-              <div className="flex gap-3 border-t border-line px-6 py-4">
+              <div className="flex flex-wrap gap-3 border-t border-line px-6 py-4">
                 <button type="button" className="flex-1 rounded-lg border border-line py-2 text-sm" onClick={() => setComposer("edit")}>
                   Alterar
                 </button>
@@ -532,7 +585,7 @@ function Agenda({
       ) : null}
 
       {toast ? (
-        <div className="toast-in fixed bottom-6 left-1/2 z-[90] -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">
+        <div className="toast-in fixed bottom-6 left-1/2 z-[90] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">
           {toast}
         </div>
       ) : null}
@@ -576,6 +629,7 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 function CalendarGrid({
+  isDesktop,
   cells,
   compact,
   tripsOn,
@@ -583,6 +637,7 @@ function CalendarGrid({
   onSelect,
   onCreateOn,
 }: {
+  isDesktop: boolean;
   cells: { iso: string; day: number; inMonth: boolean }[];
   compact: boolean;
   tripsOn: (iso: string) => Trip[];
@@ -590,6 +645,10 @@ function CalendarGrid({
   onSelect: (id: string) => void;
   onCreateOn: (iso: string) => void;
 }) {
+  if (!isDesktop) {
+    const props = { cells, tripsOn, selectedTripId, onSelect, onCreateOn };
+    return compact ? <WeekList {...props} /> : <MonthCompact {...props} />;
+  }
   return (
     <div>
       <div className="grid grid-cols-7 border-b border-line bg-surface-muted">
@@ -734,10 +793,19 @@ function TripForm({
         <input className={fieldClass} name="client" placeholder="Cliente" defaultValue={trip?.client} required />
         <input className={fieldClass} name="destination" placeholder="Destino" defaultValue={trip?.destination} required />
         <input className={fieldClass} name="objective" placeholder="Objetivo" defaultValue={trip?.objective} required />
-        <div className="grid grid-cols-3 gap-3">
-          <input className={fieldClass} name="startDate" type="date" defaultValue={trip?.startDate ?? initialDate ?? undefined} required />
-          <input className={fieldClass} name="time" type="time" defaultValue={trip?.time} required />
-          <input className={fieldClass} name="endDate" type="date" defaultValue={trip?.endDate ?? initialDate ?? undefined} required />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <label className="block text-xs text-muted">
+            Ida
+            <input className={`${fieldClass} mt-1`} name="startDate" type="date" defaultValue={trip?.startDate ?? initialDate ?? undefined} required />
+          </label>
+          <label className="block text-xs text-muted">
+            Horário
+            <input className={`${fieldClass} mt-1`} name="time" type="time" defaultValue={trip?.time} required />
+          </label>
+          <label className="col-span-2 block text-xs text-muted sm:col-span-1">
+            Volta
+            <input className={`${fieldClass} mt-1`} name="endDate" type="date" defaultValue={trip?.endDate ?? initialDate ?? undefined} required />
+          </label>
         </div>
         {error ? <p className="text-sm text-accent">{error}</p> : null}
         <div className="flex justify-end gap-2">
@@ -973,8 +1041,11 @@ function Highlight({ text, term }: { text: string; term: string }) {
 
 function Modal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/30 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-surface p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/30 sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        className="sheet-in max-h-[92dvh] w-full max-w-lg overflow-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
         {children}
       </div>
     </div>
@@ -984,4 +1055,212 @@ function Modal({ onClose, children }: { onClose: () => void; children: ReactNode
 function formatBr(iso: string) {
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
+function dayLabel(iso: string, options: Intl.DateTimeFormatOptions) {
+  return fromIsoDate(iso).toLocaleDateString("pt-BR", options);
+}
+
+function TripCard({ trip, selected, onSelect }: { trip: Trip; selected: boolean; onSelect: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(trip.id);
+      }}
+      className={`suggestion-in flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition duration-200 ease-[var(--ease-out-soft)] active:scale-[0.98] ${
+        selected ? "border-accent bg-accent text-white" : "border-line bg-surface hover:border-accent/40"
+      }`}
+    >
+      <span className={`h-9 w-1 shrink-0 rounded-full ${selected ? "bg-white/70" : "bg-accent"}`} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">
+          {trip.client} · {trip.destination}
+        </span>
+        <span className={`block truncate text-xs ${selected ? "text-white/80" : "text-muted"}`}>
+          {trip.ownerName} · {trip.time}
+        </span>
+      </span>
+      <span aria-hidden className={`text-lg leading-none ${selected ? "text-white/80" : "text-muted"}`}>
+        ›
+      </span>
+    </button>
+  );
+}
+
+function MonthCompact({
+  cells,
+  tripsOn,
+  selectedTripId,
+  onSelect,
+  onCreateOn,
+}: {
+  cells: { iso: string; day: number; inMonth: boolean }[];
+  tripsOn: (iso: string) => Trip[];
+  selectedTripId: string | null;
+  onSelect: (id: string) => void;
+  onCreateOn: (iso: string) => void;
+}) {
+  const today = toIsoDate(new Date());
+  const fallback = cells.find((cell) => cell.iso === today)?.iso ?? cells.find((cell) => cell.inMonth)?.iso ?? cells[0].iso;
+  const [focused, setFocused] = useState(fallback);
+  const focusDay = cells.some((cell) => cell.iso === focused) ? focused : fallback;
+  const dayTrips = tripsOn(focusDay);
+
+  return (
+    <div>
+      <div className="grid grid-cols-7 border-b border-line bg-surface-muted">
+        {WEEKDAYS.map((day) => (
+          <div key={day} className="py-2 text-center text-[11px] font-medium text-muted">
+            {day.slice(0, 1)}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1 p-1">
+        {cells.map((cell) => {
+          const count = tripsOn(cell.iso).length;
+          const isFocused = cell.iso === focusDay;
+          return (
+            <button
+              key={cell.iso}
+              type="button"
+              onClick={() => setFocused(cell.iso)}
+              className="flex h-14 flex-col items-center gap-1 rounded-lg pt-1 transition duration-200 active:scale-95"
+            >
+              <span
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition duration-200 ease-[var(--ease-out-soft)] ${
+                  isFocused
+                    ? "bg-accent font-semibold text-white shadow-sm"
+                    : cell.iso === today
+                      ? "font-semibold text-accent ring-1 ring-accent"
+                      : cell.inMonth
+                        ? "text-ink"
+                        : "text-muted/50"
+                }`}
+              >
+                {cell.day}
+              </span>
+              <span className="flex h-1.5 items-center gap-0.5">
+                {Array.from({ length: Math.min(count, 3) }, (_, index) => (
+                  <span key={index} className={`h-1.5 w-1.5 rounded-full ${cell.inMonth ? "bg-accent" : "bg-accent/40"}`} />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <section key={focusDay} className="suggestion-in border-t border-line p-3">
+        <h3 className="text-sm font-semibold first-letter:uppercase">{dayLabel(focusDay, { weekday: "long", day: "numeric", month: "long" })}</h3>
+        <div className="mt-2 space-y-2">
+          {dayTrips.length === 0 ? <p className="text-sm text-muted">Nenhuma viagem neste dia.</p> : null}
+          {dayTrips.map((trip) => (
+            <TripCard key={trip.id} trip={trip} selected={selectedTripId === trip.id} onSelect={onSelect} />
+          ))}
+          <button
+            type="button"
+            onClick={() => onCreateOn(focusDay)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-accent/40 py-2.5 text-sm font-medium text-accent transition duration-200 active:scale-[0.98]"
+          >
+            <span aria-hidden className="text-base leading-none">+</span>
+            Nova viagem neste dia
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function WeekList({
+  cells,
+  tripsOn,
+  selectedTripId,
+  onSelect,
+  onCreateOn,
+}: {
+  cells: { iso: string; day: number; inMonth: boolean }[];
+  tripsOn: (iso: string) => Trip[];
+  selectedTripId: string | null;
+  onSelect: (id: string) => void;
+  onCreateOn: (iso: string) => void;
+}) {
+  const today = toIsoDate(new Date());
+  return (
+    <ul className="divide-y divide-line">
+      {cells.map((cell) => {
+        const dayTrips = tripsOn(cell.iso);
+        const isToday = cell.iso === today;
+        return (
+          <li
+            key={cell.iso}
+            role="button"
+            tabIndex={0}
+            onClick={() => onCreateOn(cell.iso)}
+            className="flex gap-3 px-3 py-3 transition-colors duration-200 active:bg-accent-soft/40"
+          >
+            <div className="w-11 shrink-0 text-center">
+              <p className={`text-[11px] uppercase ${isToday ? "font-semibold text-accent" : "text-muted"}`}>
+                {dayLabel(cell.iso, { weekday: "short" }).replace(".", "")}
+              </p>
+              <p
+                className={`mx-auto mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-base ${
+                  isToday ? "bg-accent font-semibold text-white" : "font-medium"
+                }`}
+              >
+                {cell.day}
+              </p>
+            </div>
+            <div className="min-w-0 flex-1 space-y-2 self-center">
+              {dayTrips.length === 0 ? (
+                <p className="text-sm text-muted">
+                  Sem viagens <span className="text-accent">· toque para adicionar</span>
+                </p>
+              ) : null}
+              {dayTrips.map((trip) => (
+                <TripCard key={trip.id} trip={trip} selected={selectedTripId === trip.id} onSelect={onSelect} />
+              ))}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function IconMenu() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function IconBell() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+function IconHistory() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5M12 7v5l3 2" />
+    </svg>
+  );
 }
