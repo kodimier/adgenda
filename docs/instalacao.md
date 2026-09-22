@@ -37,6 +37,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 Origens, SMTP e chaves de provedor ficam no `.env` local, sem commit. Sem `BREVO_API_KEY`, os e-mails caem no Mailpit.
 
+## Administração
+
+`ADMIN_EMAILS` (lista separada por vírgula) define quem acessa o painel de administração. A cada inicialização a API marca essas contas como administradoras; a conta precisa já existir, então quem cria a conta depois deve reiniciar a API ou ser promovido por outro administrador no próprio painel.
+
 ## Internalização
 
 O front é uma SPA estática. Em ambiente corporativo pode ser servido por Nginx (ou equivalente). A API é um processo Node independente. Banco, SMTP e autenticação devem ser trocados pelos adaptadores de infraestrutura, sem reescrever as regras de permissão, histórico e convite.

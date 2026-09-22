@@ -1,4 +1,6 @@
 import type {
+  AdminAuditEntry,
+  AdminUser,
   AgendaSummary,
   AppNotification,
   HistoryEntry,
@@ -210,6 +212,49 @@ export function markNotificationRead(id: string) {
 
 export function markAllNotificationsRead() {
   return request<void>("/notifications/read-all", { method: "POST" });
+}
+
+export type AdminFilter = "todos" | "ativo" | "inativo" | "removido" | "admin";
+
+export function adminUsers(query: string, filter: AdminFilter, signal?: AbortSignal) {
+  return request<AdminUser[]>(
+    `/admin/users?q=${encodeURIComponent(query)}&filter=${filter}`,
+    { signal },
+  );
+}
+
+export function adminUpdateUser(id: string, input: { name: string; email: string; role: string }) {
+  return request<AdminUser>(`/admin/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminSetBlocked(id: string, blocked: boolean) {
+  return request<AdminUser>(`/admin/users/${id}/${blocked ? "block" : "unblock"}`, { method: "POST" });
+}
+
+export function adminSetAdmin(id: string, isAdmin: boolean) {
+  return request<AdminUser>(`/admin/users/${id}/admin`, {
+    method: "POST",
+    body: JSON.stringify({ isAdmin }),
+  });
+}
+
+export function adminConfirmEmail(id: string) {
+  return request<AdminUser>(`/admin/users/${id}/confirm-email`, { method: "POST" });
+}
+
+export function adminSendPasswordReset(id: string) {
+  return request<{ ok: boolean }>(`/admin/users/${id}/password-reset`, { method: "POST" });
+}
+
+export function adminRemoveUser(id: string) {
+  return request<{ ok: boolean }>(`/admin/users/${id}`, { method: "DELETE" });
+}
+
+export function adminAudit() {
+  return request<AdminAuditEntry[]>("/admin/audit");
 }
 
 export function initialsOf(name: string) {

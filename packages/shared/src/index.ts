@@ -10,7 +10,7 @@ export type PeriodView = (typeof PERIOD_VIEWS)[number];
 export const PARTICIPATION_TYPES = ["administrador", "integrante"] as const;
 export type ParticipationType = (typeof PARTICIPATION_TYPES)[number];
 
-export const USER_STATUSES = ["ativo", "inativo"] as const;
+export const USER_STATUSES = ["ativo", "inativo", "removido"] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
 
 export const AGENDA_STATUSES = ["ativa", "arquivada"] as const;
@@ -36,6 +36,7 @@ export type PublicUser = {
   email: string;
   role: string;
   status: UserStatus;
+  isAdmin: boolean;
 };
 
 export type AgendaSummary = {
@@ -113,4 +114,38 @@ export type Invite = {
   status: InviteStatus;
   createdAt: string;
   acceptedAt: string | null;
+};
+
+export const ADMIN_ACTIONS = [
+  "conta_alterada",
+  "conta_bloqueada",
+  "conta_desbloqueada",
+  "conta_removida",
+  "email_confirmado",
+  "senha_redefinicao_enviada",
+  "admin_concedido",
+  "admin_revogado",
+] as const;
+export type AdminAction = (typeof ADMIN_ACTIONS)[number];
+
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: UserStatus;
+  isAdmin: boolean;
+  emailVerified: boolean;
+  agendas: number;
+  createdAt: string;
+  lastAccessAt: string | null;
+};
+
+export type AdminAuditEntry = {
+  id: string;
+  actorName: string;
+  targetName: string;
+  action: AdminAction;
+  details: string | null;
+  createdAt: string;
 };

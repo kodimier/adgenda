@@ -37,6 +37,7 @@ services:
       MAIL_SECURE: ${MAIL_SECURE:-false}
       MAIL_FROM: ${MAIL_FROM:-Adgenda <noreply@localhost>}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     depends_on:
       postgres:
         condition: service_healthy

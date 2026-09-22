@@ -26,6 +26,23 @@ Todas discretas (cerca de 180–220ms), sem comprometer produtividade.
 | Notificações | Lista desce no sino; item lido some o contador |
 | Cancelar | Chip some; toast com **Desfazer** por alguns segundos |
 
+## Administração
+
+Contas marcadas como administradoras veem **Administração** no menu lateral. O painel lista as contas com busca por nome, e-mail ou cargo e filtros (ativos, bloqueados, administradores, removidos), e mostra cargo, número de agendas e último acesso.
+
+Ao abrir uma conta, o administrador pode:
+
+- corrigir nome, e-mail e cargo;
+- confirmar o e-mail de quem não recebeu a mensagem;
+- enviar o link de redefinição de senha;
+- dar ou tirar acesso de administrador;
+- bloquear e desbloquear (bloquear encerra as sessões abertas);
+- remover a conta de um colaborador desligado.
+
+Remover anonimiza a conta: nome, e-mail e senha são apagados, as viagens continuam no histórico como "Conta removida" e o e-mail fica livre para um novo cadastro. Agendas em que a pessoa era a única administradora passam para o integrante mais antigo ou, sem integrantes, são arquivadas. A remoção pede que o e-mail da conta seja digitado.
+
+Ninguém bloqueia, remove ou muda o próprio acesso pelo painel. Toda ação fica na aba **Registro**, com quem fez, em quem e quando.
+
 ## Login e cadastro
 
 A aplicação abre na tela de autenticação.

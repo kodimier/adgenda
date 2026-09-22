@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   AgendaSummary,
   AppNotification,
@@ -10,6 +10,7 @@ import type {
   Trip,
 } from "@adgenda/shared";
 import { PERIOD_VIEWS } from "@adgenda/shared";
+import { AdminPanel } from "./AdminPanel";
 import { AuthScreen } from "./AuthScreen";
 import {
   acceptInvite,
@@ -43,6 +44,7 @@ import {
   toIsoDate,
   weekCells,
 } from "./dates";
+import { FOCUS_RING, Modal, fieldClass } from "./ui";
 
 const PERIOD_LABEL: Record<PeriodView, string> = {
   semana: "Semana",
@@ -51,9 +53,6 @@ const PERIOD_LABEL: Record<PeriodView, string> = {
   semestre: "Semestre",
   ano: "Ano",
 };
-
-const fieldClass =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
 export function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -111,14 +110,33 @@ function Agenda({
   const [composer, setComposer] = useState<"create" | "edit" | "agenda" | "invite" | null>(null);
   const [draftDate, setDraftDate] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [view, setView] = useState<"agenda" | "admin">("agenda");
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [toast, setToast] = useState<string | null>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const range = useMemo(() => periodRange(period, cursor), [period, cursor]);
+  const [navDirection, setNavDirection] = useState<-1 | 0 | 1>(0);
+  const todayIso = toIsoDate(new Date());
+  const viewingToday = range.from <= todayIso && todayIso <= range.to;
+  const navigate = (direction: -1 | 0 | 1) => {
+    if (direction === 0) {
+      setNavDirection(range.from > todayIso ? -1 : 1);
+      setCursor(new Date());
+      return;
+    }
+    setNavDirection(direction);
+    setCursor(shiftPeriod(period, cursor, direction));
+  };
   const agenda = agendas.find((item) => item.id === agendaId) ?? null;
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId) ?? null;
   const isAdmin = agenda?.participationType === "administrador";
   const unread = notifications.filter((item) => !item.readAt).length;
+  const [bellRing, setBellRing] = useState(0);
+  const lastUnread = useRef(unread);
+  useEffect(() => {
+    if (unread > lastUnread.current) setBellRing((count) => count + 1);
+    lastUnread.current = unread;
+  }, [unread]);
 
   const reloadAgendas = useCallback(async (preferredId?: string | null) => {
     const items = await listAgendas();
@@ -228,6 +246,7 @@ function Agenda({
               type="button"
               onClick={() => {
                 setAgendaId(item.id);
+                setView("agenda");
                 setMenuOpen(false);
               }}
               className={`w-full rounded-lg px-3 py-2.5 text-left transition duration-200 ease-[var(--ease-out-soft)] ${
@@ -275,6 +294,21 @@ function Agenda({
               Convidar integrante
             </button>
           ) : null}
+          {user.isAdmin ? (
+            <button
+              type="button"
+              onClick={() => {
+                setView("admin");
+                setMenuOpen(false);
+              }}
+              className={`group mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition duration-200 ${FOCUS_RING} ${
+                view === "admin" ? "bg-accent-soft text-accent" : "text-ink/80 hover:bg-surface-muted"
+              }`}
+            >
+              <IconShield />
+              Administração
+            </button>
+          ) : null}
           <p className="mt-4 text-sm font-medium">{user.name}</p>
           <p className="text-xs text-muted">{user.role}</p>
           <button type="button" onClick={onLogout} className="mt-3 text-xs text-muted transition hover:text-accent">
@@ -283,67 +317,106 @@ function Agenda({
         </div>
       </aside>
 
+      {view === "admin" && user.isAdmin ? (
+        <AdminPanel user={user} onMenu={() => setMenuOpen(true)} onBack={() => setView("agenda")} onToast={setToast} />
+      ) : (
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-50 flex flex-wrap items-center gap-2 border-b border-line bg-surface/90 px-3 py-2 backdrop-blur md:gap-3 md:px-6 md:py-3">
           <button
             type="button"
             aria-label="Abrir menu"
             onClick={() => setMenuOpen(true)}
-            className="-ml-1 rounded-full p-2 text-ink transition hover:bg-surface-muted active:scale-90 lg:hidden"
+            className={`group -ml-1 rounded-full p-2 text-ink transition hover:bg-surface-muted active:scale-90 lg:hidden ${FOCUS_RING}`}
           >
-            <IconMenu />
+            <span className="block transition-transform duration-200 ease-out-soft group-hover:scale-110">
+              <IconMenu />
+            </span>
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{agenda?.name ?? "Nenhuma agenda"}</p>
-            <p className="truncate text-xs capitalize text-muted">{range.title}</p>
+            <p
+              key={range.title}
+              className={`truncate text-xs capitalize text-muted ${navDirection < 0 ? "title-in-back" : navDirection > 0 ? "title-in-forward" : ""}`}
+              aria-live="polite"
+            >
+              {range.title}
+            </p>
           </div>
           <div className="order-last flex w-full items-center gap-2 md:order-none md:w-auto">
             <div className="flex shrink-0 items-center gap-1">
-              <button type="button" aria-label="Período anterior" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-90" onClick={() => setCursor(shiftPeriod(period, cursor, -1))}>
-                ‹
+              <button
+                type="button"
+                aria-label="Período anterior"
+                className={`group inline-flex h-8 w-8 items-center justify-center rounded-full border border-line text-sm transition hover:border-accent hover:bg-accent-soft hover:text-accent active:scale-90 ${FOCUS_RING}`}
+                onClick={() => navigate(-1)}
+              >
+                <span aria-hidden className="transition-transform duration-200 ease-out-soft group-hover:-translate-x-0.5 group-active:-translate-x-1">
+                  ‹
+                </span>
               </button>
-              <button type="button" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-95" onClick={() => setCursor(new Date())}>
+              <button
+                type="button"
+                aria-label={viewingToday ? "Hoje" : "Voltar para hoje"}
+                disabled={viewingToday}
+                className={`relative h-8 rounded-full border px-3 text-sm transition duration-200 active:scale-95 disabled:cursor-default ${FOCUS_RING} ${
+                  viewingToday
+                    ? "border-line text-muted"
+                    : "border-accent/40 bg-accent-soft text-accent hover:border-accent hover:shadow-sm"
+                }`}
+                onClick={() => navigate(0)}
+              >
                 Hoje
-              </button>
-              <button type="button" aria-label="Próximo período" className="rounded-full border border-line px-2.5 py-1 text-sm transition active:scale-90" onClick={() => setCursor(shiftPeriod(period, cursor, 1))}>
-                ›
-              </button>
-            </div>
-            <div className="no-scrollbar relative flex min-w-0 flex-1 overflow-x-auto rounded-full bg-surface-muted p-1 md:flex-none">
-              {PERIOD_VIEWS.map((view) => (
-                <button
-                  key={view}
-                  type="button"
-                  onClick={() => setPeriod(view)}
-                  className={`relative shrink-0 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition duration-200 active:scale-95 ${
-                    period === view ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
+                <span
+                  aria-hidden
+                  className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent transition duration-200 ease-out-soft ${
+                    viewingToday ? "scale-0 opacity-0" : "scale-100 opacity-100"
                   }`}
-                >
-                  {PERIOD_LABEL[view]}
-                </button>
-              ))}
+                />
+              </button>
+              <button
+                type="button"
+                aria-label="Próximo período"
+                className={`group inline-flex h-8 w-8 items-center justify-center rounded-full border border-line text-sm transition hover:border-accent hover:bg-accent-soft hover:text-accent active:scale-90 ${FOCUS_RING}`}
+                onClick={() => navigate(1)}
+              >
+                <span aria-hidden className="transition-transform duration-200 ease-out-soft group-hover:translate-x-0.5 group-active:translate-x-1">
+                  ›
+                </span>
+              </button>
             </div>
+            <PeriodSwitch value={period} onChange={setPeriod} />
           </div>
           <button
             type="button"
             aria-label="Histórico"
             onClick={() => setHistoryOpen(true)}
-            className="inline-flex items-center gap-2 rounded-full border border-line p-2 text-sm transition hover:border-accent active:scale-95 md:px-3 md:py-1.5"
+            className={`group inline-flex items-center gap-2 rounded-full border border-line p-2 text-sm transition hover:border-accent hover:bg-accent-soft hover:text-accent active:scale-95 md:px-3 md:py-1.5 ${FOCUS_RING}`}
           >
-            <IconHistory />
+            <span className="block transition-transform duration-300 ease-out-soft group-hover:-rotate-45">
+              <IconHistory />
+            </span>
             <span className="hidden md:inline">Histórico</span>
           </button>
           <div className="relative z-50" ref={notificationsRef}>
             <button
               type="button"
               aria-label="Notificações"
+              aria-expanded={notificationsOpen}
+              aria-haspopup="true"
               onClick={() => setNotificationsOpen((open) => !open)}
-              className="relative inline-flex items-center gap-2 rounded-full border border-line p-2 text-sm transition hover:border-accent active:scale-95 md:px-3 md:py-1.5"
+              className={`group relative inline-flex items-center gap-2 rounded-full border p-2 text-sm transition active:scale-95 md:px-3 md:py-1.5 ${FOCUS_RING} ${
+                notificationsOpen ? "border-accent bg-accent-soft text-accent" : "border-line hover:border-accent hover:bg-accent-soft hover:text-accent"
+              }`}
             >
-              <IconBell />
+              <span key={bellRing} className={`block origin-top group-hover:bell-ring ${bellRing > 0 ? "bell-ring" : ""}`}>
+                <IconBell />
+              </span>
               <span className="hidden md:inline">Notificações</span>
               {unread > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] text-white">
+                <span
+                  key={unread}
+                  className="badge-pop absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] text-white ring-2 ring-surface"
+                >
                   {unread}
                 </span>
               ) : null}
@@ -396,9 +469,11 @@ function Agenda({
               setComposer("create");
             }}
             aria-label="Nova viagem"
-            className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-sm font-medium text-white transition hover:brightness-110 active:scale-95 disabled:opacity-50 md:px-4"
+            className={`group inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-sm font-medium text-white shadow-sm transition duration-200 ease-out-soft hover:-translate-y-px hover:shadow-md hover:shadow-accent/30 hover:brightness-110 active:translate-y-0 active:scale-95 active:shadow-sm disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none md:px-4 ${FOCUS_RING}`}
           >
-            <span aria-hidden className="text-base leading-none">+</span>
+            <span aria-hidden className="text-base leading-none transition-transform duration-300 ease-out-soft group-hover:rotate-90 group-disabled:rotate-0">
+              +
+            </span>
             <span className="hidden sm:inline">Nova viagem</span>
           </button>
         </header>
@@ -463,6 +538,7 @@ function Agenda({
           </p>
         </main>
       </div>
+      )}
 
       <Drawer open={Boolean(selectedTrip)} onClose={() => setSelectedTripId(null)}>
         {selectedTrip ? (
@@ -1039,22 +1115,54 @@ function Highlight({ text, term }: { text: string; term: string }) {
   );
 }
 
-function Modal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/30 sm:items-center sm:p-4" onClick={onClose}>
-      <div
-        className="sheet-in max-h-[92dvh] w-full max-w-lg overflow-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:p-6"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function formatBr(iso: string) {
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function PeriodSwitch({ value, onChange }: { value: PeriodView; onChange: (view: PeriodView) => void }) {
+  const buttons = useRef(new Map<PeriodView, HTMLButtonElement>());
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const button = buttons.current.get(value);
+      if (!button) return;
+      setIndicator({ left: button.offsetLeft, width: button.offsetWidth });
+      button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [value]);
+
+  return (
+    <div role="tablist" aria-label="Período" className="no-scrollbar relative flex min-w-0 flex-1 overflow-x-auto rounded-full bg-surface-muted p-1 md:flex-none">
+      <span
+        aria-hidden
+        className={`absolute bottom-1 top-1 rounded-full bg-surface shadow-sm ring-1 ring-line/70 transition-[left,width,opacity] duration-300 ease-out-soft ${indicator ? "opacity-100" : "opacity-0"}`}
+        style={indicator ?? undefined}
+      />
+      {PERIOD_VIEWS.map((view) => (
+        <button
+          key={view}
+          ref={(node) => {
+            if (node) buttons.current.set(view, node);
+            else buttons.current.delete(view);
+          }}
+          type="button"
+          role="tab"
+          aria-selected={value === view}
+          onClick={() => onChange(view)}
+          className={`relative shrink-0 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition duration-200 active:scale-95 ${FOCUS_RING} ${
+            value === view ? "text-ink" : "text-muted hover:bg-surface/50 hover:text-ink"
+          }`}
+        >
+          {PERIOD_LABEL[view]}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function useMediaQuery(query: string) {
@@ -1261,6 +1369,15 @@ function IconHistory() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
       <path d="M3 3v5h5M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function IconShield() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z" />
+      <path d="m9 12 2 2 4-4" />
     </svg>
   );
 }

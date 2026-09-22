@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import type { UserStatus } from "@adgenda/shared";
 import { DatabaseService } from "../infrastructure/database/database.service";
 import { MailPort } from "../infrastructure/mail/mail.port";
 import {
@@ -147,12 +148,16 @@ export class AuthService implements OnApplicationBootstrap {
     const user = await this.database.db.query.users.findFirst({
       where: eq(users.email, email),
     });
-    if (!user || user.status !== "ativo") {
+    if (!user || user.status === "removido") {
       throw new UnauthorizedException("E-mail ou senha inválidos.");
     }
     const valid = await verifyPassword(user.passwordHash, input.password);
     if (!valid) {
       throw new UnauthorizedException("E-mail ou senha inválidos.");
+    }
+    // Só depois da senha certa, para não revelar quais e-mails têm conta.
+    if (user.status !== "ativo") {
+      throw new ForbiddenException("Esta conta está bloqueada. Fale com o T.I.");
     }
     if (!user.emailVerifiedAt) {
       // A falha de envio já fica no log do adapter; a tela de confirmação oferece reenviar.
@@ -184,7 +189,8 @@ export class AuthService implements OnApplicationBootstrap {
       name: user.name,
       email: user.email,
       role: user.role,
-      status: user.status as "ativo" | "inativo",
+      status: user.status as UserStatus,
+      isAdmin: user.isAdmin,
     };
   }
 

@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   integer,
   jsonb,
@@ -17,6 +18,7 @@ export const users = pgTable(
     email: text("email").notNull(),
     role: text("role").notNull(),
     status: text("status").notNull().default("ativo"),
+    isAdmin: boolean("is_admin").notNull().default(false),
     passwordHash: text("password_hash").notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -156,4 +158,20 @@ export const notifications = pgTable("notifications", {
   summary: text("summary").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   readAt: timestamp("read_at", { withTimezone: true }),
+});
+
+export const adminAudit = pgTable("admin_audit", {
+  id: text("id").primaryKey(),
+  actorId: text("actor_id")
+    .notNull()
+    .references(() => users.id),
+  actorName: text("actor_name").notNull(),
+  targetId: text("target_id")
+    .notNull()
+    .references(() => users.id),
+  // Nomes gravados na hora da ação: a conta pode ser renomeada ou anonimizada depois.
+  targetName: text("target_name").notNull(),
+  action: text("action").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
